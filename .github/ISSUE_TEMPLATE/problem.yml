@@ -1,0 +1,51 @@
+name: Something isn't working
+description: Lights Bridge did something wrong, or the lights did not change.
+labels: [bug]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Tell us what you saw, in your own words.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What should have happened?
+  - type: dropdown
+    id: icon
+    attributes:
+      label: Menu bar dot
+      description: What color is the dot next to "Lights" by the clock?
+      options:
+        - Green
+        - Yellow
+        - Red
+        - No dot at all
+        - Not sure
+  - type: input
+    id: version
+    attributes:
+      label: Lights Bridge version
+      description: Click the Lights dot in the menu bar and choose About Lights Bridge.
+      placeholder: "1.0.0"
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      placeholder: "macOS 14.5"
+  - type: dropdown
+    id: mac-type
+    attributes:
+      label: Mac type
+      options:
+        - Apple Silicon
+        - Intel
+        - Not sure
+  - type: textarea
+    id: log
+    attributes:
+      label: Log excerpt
+      description: Click the Lights dot in the menu bar, choose Show Log, and copy the last few lines.
+      render: text

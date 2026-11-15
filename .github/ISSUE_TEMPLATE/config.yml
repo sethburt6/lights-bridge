@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: "Lights didn't change on Sunday?"
+    url: https://github.com/sethburt6/lights-bridge/blob/main/docs/VOLUNTEER.md
+    about: A one-page checklist to get the lights working again. Try this first.
