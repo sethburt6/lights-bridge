@@ -1,51 +1,162 @@
 import AppKit
 
+// MARK: - Reusable views
+
 /// A small filled circle used as a status light (drawn, not an emoji).
 final class StatusDotView: NSView {
     var color: NSColor = .systemGray { didSet { needsDisplay = true } }
+    private let diameter: CGFloat
 
-    override var intrinsicContentSize: NSSize { NSSize(width: 10, height: 10) }
+    init(diameter: CGFloat = 8) {
+        self.diameter = diameter
+        super.init(frame: .zero)
+        translatesAutoresizingMaskIntoConstraints = false
+    }
+
+    required init?(coder: NSCoder) { fatalError("not used") }
+
+    override var intrinsicContentSize: NSSize { NSSize(width: diameter, height: diameter) }
 
     override func draw(_ dirtyRect: NSRect) {
         color.setFill()
-        NSBezierPath(ovalIn: bounds.insetBy(dx: 0.5, dy: 0.5)).fill()
+        NSBezierPath(ovalIn: bounds).fill()
     }
 }
 
-/// The "Lights Bridge Settings" window: live status, output and channel choice,
-/// cue offset, and a test-cue sender. It refreshes whenever the window is shown and
-/// whenever the engine posts `MIDIEngine.didChangeNotification`.
+/// One row inside a `GroupBox`: a fixed-height strip with an optional hairline along its top edge.
+private final class GroupRow: NSView {
+    private let showsSeparator: Bool
+
+    init(showsSeparator: Bool) {
+        self.showsSeparator = showsSeparator
+        super.init(frame: .zero)
+        translatesAutoresizingMaskIntoConstraints = false
+    }
+
+    required init?(coder: NSCoder) { fatalError("not used") }
+
+    override func draw(_ dirtyRect: NSRect) {
+        guard showsSeparator else { return }
+        NSColor.separatorColor.setFill()
+        // Hairline along the top edge, inset from the left like System Settings.
+        NSRect(x: GroupBox.inset, y: bounds.maxY - 0.5, width: bounds.width - GroupBox.inset, height: 0.5).fill()
+    }
+}
+
+/// A rounded "card" that holds rows of `label ........ control`, like a group in System Settings.
+final class GroupBox: NSView {
+    static let rowHeight: CGFloat = 32
+    static let inset: CGFloat = 12
+    private let stack = NSStackView()
+    private var rowCount = 0
+
+    init() {
+        super.init(frame: .zero)
+        translatesAutoresizingMaskIntoConstraints = false
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 0
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(equalTo: leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: trailingAnchor),
+            stack.topAnchor.constraint(equalTo: topAnchor),
+            stack.bottomAnchor.constraint(equalTo: bottomAnchor),
+        ])
+    }
+
+    required init?(coder: NSCoder) { fatalError("not used") }
+
+    override func draw(_ dirtyRect: NSRect) {
+        // Colors are resolved at draw time, so the card follows light and dark mode.
+        let path = NSBezierPath(roundedRect: bounds.insetBy(dx: 0.25, dy: 0.25), xRadius: 8, yRadius: 8)
+        NSColor.controlBackgroundColor.setFill()
+        path.fill()
+        NSColor.separatorColor.setStroke()
+        path.lineWidth = 0.5
+        path.stroke()
+    }
+
+    /// Adds a row: `label` on the left (13 pt), `control` right-aligned. The tooltip, when given,
+    /// is set on the label and on the control (and its sub-controls).
+    @discardableResult
+    func addRow(label: String, control: NSView, tooltip: String? = nil) -> NSView {
+        let row = GroupRow(showsSeparator: rowCount > 0)
+        rowCount += 1
+
+        let text = NSTextField(labelWithString: label)
+        text.font = .systemFont(ofSize: 13)
+        text.textColor = .labelColor
+        text.lineBreakMode = .byTruncatingTail
+        text.translatesAutoresizingMaskIntoConstraints = false
+        text.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        control.translatesAutoresizingMaskIntoConstraints = false
+        control.setContentHuggingPriority(.required, for: .horizontal)
+        control.setContentCompressionResistancePriority(.required, for: .horizontal)
+
+        row.addSubview(text)
+        row.addSubview(control)
+        stack.addArrangedSubview(row)
+        NSLayoutConstraint.activate([
+            row.heightAnchor.constraint(equalToConstant: GroupBox.rowHeight),
+            row.widthAnchor.constraint(equalTo: stack.widthAnchor),
+            text.leadingAnchor.constraint(equalTo: row.leadingAnchor, constant: GroupBox.inset),
+            text.centerYAnchor.constraint(equalTo: row.centerYAnchor),
+            control.trailingAnchor.constraint(equalTo: row.trailingAnchor, constant: -GroupBox.inset),
+            control.centerYAnchor.constraint(equalTo: row.centerYAnchor),
+            text.trailingAnchor.constraint(lessThanOrEqualTo: control.leadingAnchor, constant: -8),
+        ])
+        if let tooltip = tooltip {
+            text.toolTip = tooltip
+            GroupBox.applyTooltip(tooltip, to: control)
+        }
+        return row
+    }
+
+    private static func applyTooltip(_ tip: String, to view: NSView) {
+        view.toolTip = tip
+        view.subviews.forEach { applyTooltip(tip, to: $0) }
+    }
+}
+
+// MARK: - Window
+
+/// The "Lights Bridge" settings window: a status header, then grouped cards for the board,
+/// reliability and advanced options. It refreshes whenever the window is shown and whenever the
+/// engine posts `MIDIEngine.didChangeNotification`.
 final class SettingsWindowController: NSWindowController {
     private let engine: MIDIEngine
     private var hasBeenCentered = false
 
-    // Status
-    private let cableDot = StatusDotView()
-    private let cableLabel = SettingsWindowController.valueLabel()
-    private let noteLabel = SettingsWindowController.valueLabel()
-    private let cueLabel = SettingsWindowController.valueLabel()
+    private static let contentWidth: CGFloat = 440
+    private static let margin: CGFloat = 20
+
+    // Status header
+    private let cableDot = StatusDotView(diameter: 8)
+    private let cableLabel = NSTextField(labelWithString: "")
+    private let detailLabel = NSTextField(labelWithString: "")
     // Board
     private let outputPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private let channelPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     // Reliability
-    private let loginCheck = NSButton(checkboxWithTitle: "Start when the Mac logs in", target: nil, action: nil)
-    private let restartCheck = NSButton(checkboxWithTitle: "Restart automatically if it quits or crashes", target: nil, action: nil)
-    private let quitOptionCheck = NSButton(checkboxWithTitle: "Hide Quit unless the Option key is held", target: nil, action: nil)
+    private let loginSwitch = NSSwitch()
+    private let restartSwitch = NSSwitch()
+    private let quitOptionSwitch = NSSwitch()
     // Advanced
     private let offsetStepper = NSStepper()
-    private let offsetLabel = SettingsWindowController.valueLabel()
-    // Test
+    private let offsetLabel = NSTextField(labelWithString: "")
     private let testField = NSTextField()
 
     private let timeFormatter: DateFormatter = {
-        let f = DateFormatter(); f.timeStyle = .medium; f.dateStyle = .none; return f
+        let f = DateFormatter(); f.timeStyle = .short; f.dateStyle = .none; return f
     }()
 
     init(engine: MIDIEngine) {
         self.engine = engine
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 460, height: 400),
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: SettingsWindowController.contentWidth, height: 400),
                               styleMask: [.titled, .closable], backing: .buffered, defer: false)
-        window.title = "Lights Bridge Settings"
+        window.title = "Lights Bridge"
         window.isReleasedWhenClosed = false
         super.init(window: window)
         buildContent(in: window)
@@ -83,149 +194,160 @@ final class SettingsWindowController: NSWindowController {
 
     // MARK: Building
 
-    private static func valueLabel() -> NSTextField {
-        let l = NSTextField(labelWithString: "")
-        l.lineBreakMode = .byTruncatingTail
-        return l
-    }
-
-    private static func rowLabel(_ text: String) -> NSTextField {
+    /// A small secondary-color caption above a card ("Board", "Reliability", ...).
+    private static func caption(_ text: String) -> NSView {
         let l = NSTextField(labelWithString: text)
-        l.alignment = .right
-        return l
+        l.font = .systemFont(ofSize: 11)
+        l.textColor = .secondaryLabelColor
+        let s = NSStackView(views: [l])
+        s.edgeInsets = NSEdgeInsets(top: 0, left: 4, bottom: 0, right: 0)
+        return s
     }
 
-    private static func header(_ text: String) -> NSTextField {
-        NSTextField(labelWithString: text).then {
-            $0.font = .boldSystemFont(ofSize: NSFont.smallSystemFontSize)
-        }
+    /// A borderless text button in the link color, for the footer.
+    private func linkButton(_ title: String, action: Selector) -> NSButton {
+        let b = NSButton(title: title, target: self, action: action)
+        b.isBordered = false
+        b.attributedTitle = NSAttributedString(string: title, attributes: [
+            .font: NSFont.systemFont(ofSize: 11),
+            .foregroundColor: NSColor.linkColor,
+        ])
+        return b
     }
 
-    private static func separator() -> NSBox {
-        let b = NSBox(); b.boxType = .separator; return b
+    private func configure(_ sw: NSSwitch, action: Selector) {
+        sw.target = self
+        sw.action = action
     }
 
     private func buildContent(in window: NSWindow) {
-        // Controls
+        // --- Status header ---
+        let icon = NSImageView(image: NSApp.applicationIconImage)
+        icon.imageScaling = .scaleProportionallyUpOrDown
+        icon.translatesAutoresizingMaskIntoConstraints = false
+        icon.widthAnchor.constraint(equalToConstant: 48).isActive = true
+        icon.heightAnchor.constraint(equalToConstant: 48).isActive = true
+
+        cableLabel.font = .systemFont(ofSize: 13, weight: .semibold)
+        cableLabel.textColor = .labelColor
+        let line1 = NSStackView(views: [cableDot, cableLabel])
+        line1.orientation = .horizontal; line1.spacing = 6; line1.alignment = .centerY
+
+        detailLabel.font = .systemFont(ofSize: 11)
+        detailLabel.textColor = .secondaryLabelColor
+        detailLabel.lineBreakMode = .byTruncatingTail
+        detailLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+
+        let lines = NSStackView(views: [line1, detailLabel])
+        lines.orientation = .vertical; lines.alignment = .leading; lines.spacing = 3
+        let header = NSStackView(views: [icon, lines])
+        header.orientation = .horizontal; header.alignment = .centerY; header.spacing = 12
+
+        // --- Board ---
         outputPopup.target = self; outputPopup.action = #selector(outputChanged)
+        outputPopup.widthAnchor.constraint(greaterThanOrEqualToConstant: 170).isActive = true
         channelPopup.target = self; channelPopup.action = #selector(channelChanged)
         for c in 1...16 { channelPopup.addItem(withTitle: "\(c)"); channelPopup.lastItem?.tag = c }
+        channelPopup.widthAnchor.constraint(equalToConstant: 64).isActive = true
 
+        let boardBox = GroupBox()
+        boardBox.addRow(label: "Send to", control: outputPopup)
+        boardBox.addRow(label: "MIDI channel", control: channelPopup)
+
+        // --- Reliability ---
+        configure(loginSwitch, action: #selector(loginChanged))
+        configure(restartSwitch, action: #selector(restartChanged))
+        configure(quitOptionSwitch, action: #selector(quitOptionChanged))
+        let reconnect = NSTextField(labelWithString: "Always on")
+        reconnect.font = .systemFont(ofSize: 13)
+        reconnect.textColor = .secondaryLabelColor
+
+        let reliabilityBox = GroupBox()
+        reliabilityBox.addRow(label: "Start at login", control: loginSwitch,
+                              tooltip: "Lights Bridge is ready before ProPresenter opens.")
+        reliabilityBox.addRow(label: "Restart if it quits", control: restartSwitch,
+                              tooltip: "Comes back within about 10 seconds if it quits or crashes.")
+        reliabilityBox.addRow(label: "Hide Quit (hold Option to show)", control: quitOptionSwitch,
+                              tooltip: "Prevents quitting by accident.")
+        reliabilityBox.addRow(label: "Cable reconnect", control: reconnect,
+                              tooltip: "Finds the cable again after it's unplugged.")
+
+        // --- Advanced ---
         offsetStepper.minValue = -5; offsetStepper.maxValue = 5; offsetStepper.increment = 1
         offsetStepper.valueWraps = false
         offsetStepper.target = self; offsetStepper.action = #selector(offsetChanged)
-        let offsetRow = NSStackView(views: [offsetStepper, offsetLabel])
-        offsetRow.orientation = .horizontal; offsetRow.spacing = 8
-
-        let note = NSTextField(wrappingLabelWithString:
-            "Only change this if the board runs a different cue than the slide asks for.")
-        note.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
-        note.textColor = .secondaryLabelColor
-        note.preferredMaxLayoutWidth = 260
-
-        loginCheck.target = self; loginCheck.action = #selector(loginChanged)
-        restartCheck.target = self; restartCheck.action = #selector(restartChanged)
-        quitOptionCheck.target = self; quitOptionCheck.action = #selector(quitOptionChanged)
-        /// A checkbox with a small secondary-color explanation line under it.
-        func checkBlock(_ box: NSButton, _ text: String) -> NSView {
-            let n = NSTextField(wrappingLabelWithString: text)
-            n.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
-            n.textColor = .secondaryLabelColor
-            n.preferredMaxLayoutWidth = 260
-            box.lineBreakMode = .byWordWrapping
-            box.widthAnchor.constraint(equalToConstant: 270).isActive = true
-            let stack = NSStackView(views: [box, n])
-            stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 2
-            return stack
-        }
-        let loginBlock = checkBlock(loginCheck, "Recommended. Lights Bridge is ready before ProPresenter opens.")
-        let restartBlock = checkBlock(restartCheck, "Recommended. It comes back within about 10 seconds.")
-        let quitBlock = checkBlock(quitOptionCheck, "Recommended. Prevents quitting it by accident.")
-        let reconnect = NSTextField(wrappingLabelWithString: "Always on (finds the cable again after it is unplugged)")
-        reconnect.preferredMaxLayoutWidth = 260
+        offsetLabel.font = .systemFont(ofSize: 13)
+        offsetLabel.alignment = .right
+        offsetLabel.widthAnchor.constraint(equalToConstant: 24).isActive = true
+        let offsetControl = NSStackView(views: [offsetLabel, offsetStepper])
+        offsetControl.orientation = .horizontal; offsetControl.spacing = 6; offsetControl.alignment = .centerY
 
         let formatter = NumberFormatter()
         formatter.numberStyle = .none
         formatter.minimum = 0; formatter.maximum = 127; formatter.allowsFloats = false
         testField.formatter = formatter
         testField.integerValue = 1
-        testField.alignment = .right
-        testField.widthAnchor.constraint(equalToConstant: 56).isActive = true
-        let sendButton = NSButton(title: "Send Test Cue", target: self, action: #selector(sendTest))
-        let testRow = NSStackView(views: [testField, sendButton])
-        testRow.orientation = .horizontal; testRow.spacing = 8
+        testField.alignment = .center
+        testField.controlSize = .small
+        testField.font = .systemFont(ofSize: NSFont.systemFontSize(for: .small))
+        testField.widthAnchor.constraint(equalToConstant: 44).isActive = true
+        let sendButton = NSButton(title: "Send", target: self, action: #selector(sendTest))
+        sendButton.bezelStyle = .rounded
+        sendButton.controlSize = .small
+        let testControl = NSStackView(views: [testField, sendButton])
+        testControl.orientation = .horizontal; testControl.spacing = 8; testControl.alignment = .centerY
 
-        cableDot.translatesAutoresizingMaskIntoConstraints = false
-        let cableRow = NSStackView(views: [cableDot, cableLabel])
-        cableRow.orientation = .horizontal; cableRow.spacing = 6
+        let advancedBox = GroupBox()
+        advancedBox.addRow(label: "Cue number offset", control: offsetControl,
+                           tooltip: "Only change this if the board runs a different cue than the slide asks for.")
+        advancedBox.addRow(label: "Test cue", control: testControl,
+                           tooltip: "Sends this cue straight to the board, without ProPresenter.")
 
-        // Footer
+        // --- Footer ---
         let version = NSTextField(labelWithString: "Version \(AppInfo.version)")
-        version.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+        version.font = .systemFont(ofSize: 11)
         version.textColor = .secondaryLabelColor
         let spacer = NSView()
         spacer.setContentHuggingPriority(.init(1), for: .horizontal)
-        let guide = NSButton(title: "Setup Guide", target: self, action: #selector(openGuide))
-        let log = NSButton(title: "Show Log", target: self, action: #selector(openLog))
-        let footer = NSStackView(views: [version, spacer, guide, log])
-        footer.orientation = .horizontal; footer.spacing = 8
+        let footer = NSStackView(views: [version, spacer,
+                                         linkButton("Setup Guide", action: #selector(openGuide)),
+                                         linkButton("Show Log", action: #selector(openLog))])
+        footer.orientation = .horizontal; footer.spacing = 14; footer.alignment = .centerY
 
-        // Grid: column 0 = right-aligned labels, column 1 = controls.
-        let grid = NSGridView(numberOfColumns: 2, rows: 0)
-        grid.rowSpacing = 8
-        grid.columnSpacing = 10
-        /// A row spanning both columns; headers sit left, separators and the footer stretch.
-        func fullRow(_ v: NSView, fill: Bool = true) {
-            let row = grid.addRow(with: [v, NSGridCell.emptyContentView])
-            row.mergeCells(in: NSRange(location: 0, length: 2))
-            row.cell(at: 0).xPlacement = fill ? .fill : .leading
+        // --- Assemble ---
+        let main = NSStackView()
+        main.orientation = .vertical
+        main.alignment = .leading
+        main.spacing = 4
+        main.translatesAutoresizingMaskIntoConstraints = false
+        let sections: [(NSView, CGFloat)] = [   // (view, space after it)
+            (header, 18),
+            (Self.caption("Board"), 4), (boardBox, 16),
+            (Self.caption("Reliability"), 4), (reliabilityBox, 16),
+            (Self.caption("Advanced"), 4), (advancedBox, 14),
+            (footer, 0),
+        ]
+        for (v, after) in sections {
+            main.addArrangedSubview(v)
+            if after > 0 { main.setCustomSpacing(after, after: v) }
         }
-        func formRow(_ label: String, _ control: NSView) { grid.addRow(with: [Self.rowLabel(label), control]) }
-        func section(_ title: String) {
-            fullRow(Self.separator())
-            fullRow(Self.header(title), fill: false)
-        }
-
-        fullRow(Self.header("Status"), fill: false)
-        formRow("Board cable:", cableRow)
-        formRow("From ProPresenter:", noteLabel)
-        formRow("Last cue sent:", cueLabel)
-        section("Board")
-        formRow("Send to:", outputPopup)
-        formRow("MIDI channel:", channelPopup)
-        section("Reliability")
-        grid.addRow(with: [NSGridCell.emptyContentView, loginBlock])
-        grid.addRow(with: [NSGridCell.emptyContentView, restartBlock])
-        grid.addRow(with: [NSGridCell.emptyContentView, quitBlock])
-        formRow("Cable reconnect:", reconnect)
-        section("Advanced")
-        formRow("Cue number offset:", offsetRow)
-        grid.addRow(with: [NSGridCell.emptyContentView, note])
-        section("Test")
-        formRow("Cue number:", testRow)
-        fullRow(Self.separator())
-        fullRow(footer)
-
-        grid.column(at: 0).xPlacement = .trailing
-        grid.column(at: 0).width = 140
-        grid.column(at: 1).xPlacement = .leading
-        for i in 0..<grid.numberOfRows {
-            grid.row(at: i).yPlacement = .center
+        for v in [header, boardBox, reliabilityBox, advancedBox, footer] {
+            v.widthAnchor.constraint(equalTo: main.widthAnchor).isActive = true
         }
 
         let content = NSView()
-        grid.translatesAutoresizingMaskIntoConstraints = false
-        content.addSubview(grid)
+        content.addSubview(main)
+        let m = Self.margin
         NSLayoutConstraint.activate([
-            content.widthAnchor.constraint(equalToConstant: 460),
-            grid.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 20),
-            grid.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -20),
-            grid.topAnchor.constraint(equalTo: content.topAnchor, constant: 18),
-            grid.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -16),
+            content.widthAnchor.constraint(equalToConstant: Self.contentWidth),
+            main.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: m),
+            main.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -m),
+            main.topAnchor.constraint(equalTo: content.topAnchor, constant: m),
+            main.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -m),
         ])
         window.contentView = content
         content.layoutSubtreeIfNeeded()
-        window.setContentSize(NSSize(width: 460, height: content.fittingSize.height))
+        window.setContentSize(NSSize(width: Self.contentWidth, height: content.fittingSize.height))
         refresh()
     }
 
@@ -233,28 +355,30 @@ final class SettingsWindowController: NSWindowController {
 
     /// Copies current engine and Settings values into the controls.
     private func refresh() {
-        // Status
+        // Status header
+        let note = engine.lastNoteReceived
+        let cue = engine.lastCue
         if let out = engine.currentOutputName {
             cableDot.color = .systemGreen
-            cableLabel.stringValue = "Connected: \(out)"
+            cableLabel.stringValue = "Connected to \(out)"
         } else {
             cableDot.color = .systemRed
-            cableLabel.stringValue = "Not found"
+            cableLabel.stringValue = "Board cable not found"
         }
-        if let n = engine.lastNoteReceived {
-            noteLabel.stringValue = "Note \(n.note) at \(timeFormatter.string(from: n.date))"
+        if let c = cue {
+            detailLabel.stringValue = "Last cue \(c.cue) at \(timeFormatter.string(from: c.date))"
+        } else if let n = note {
+            detailLabel.stringValue = "Received note \(n.note) from ProPresenter at \(timeFormatter.string(from: n.date))"
         } else {
-            noteLabel.stringValue = "Nothing received yet"
+            detailLabel.stringValue = "Waiting for ProPresenter"
         }
-        if let c = engine.lastCue {
-            cueLabel.stringValue = "Cue \(c.cue) at \(timeFormatter.string(from: c.date))"
-        } else {
-            cueLabel.stringValue = "None yet"
-        }
+        let noteText = note.map { "Note \($0.note) at \(timeFormatter.string(from: $0.date))" } ?? "Nothing received yet"
+        let cueText = cue.map { "Cue \($0.cue) at \(timeFormatter.string(from: $0.date))" } ?? "None yet"
+        detailLabel.toolTip = "From ProPresenter: \(noteText)\nLast cue sent: \(cueText)"
 
         // Output popup: Automatic, then hardware first, then virtual.
         outputPopup.removeAllItems()
-        outputPopup.addItem(withTitle: "Automatic (only cable)")
+        outputPopup.addItem(withTitle: "Automatic")
         outputPopup.menu?.addItem(.separator())
         let dests = engine.availableDestinations.sorted {
             ($0.isHardware ? 0 : 1, $0.name) < ($1.isHardware ? 0 : 1, $1.name)
@@ -280,9 +404,9 @@ final class SettingsWindowController: NSWindowController {
 
         channelPopup.selectItem(withTag: Settings.boardChannel)
 
-        loginCheck.state = Settings.startAtLogin ? .on : .off
-        restartCheck.state = Settings.restartIfQuits ? .on : .off
-        quitOptionCheck.state = Settings.quitNeedsOption ? .on : .off
+        loginSwitch.state = Settings.startAtLogin ? .on : .off
+        restartSwitch.state = Settings.restartIfQuits ? .on : .off
+        quitOptionSwitch.state = Settings.quitNeedsOption ? .on : .off
 
         let off = min(5, max(-5, Settings.cueOffset))
         offsetStepper.integerValue = off
@@ -309,17 +433,17 @@ final class SettingsWindowController: NSWindowController {
     }
 
     @objc private func loginChanged() {
-        Settings.startAtLogin = loginCheck.state == .on
+        Settings.startAtLogin = loginSwitch.state == .on
         LaunchAgent.applyStartAtLogin()
     }
 
     @objc private func restartChanged() {
-        Settings.restartIfQuits = restartCheck.state == .on
+        Settings.restartIfQuits = restartSwitch.state == .on
         Log.info("Restart if it quits set to \(Settings.restartIfQuits)")
     }
 
     @objc private func quitOptionChanged() {
-        Settings.quitNeedsOption = quitOptionCheck.state == .on
+        Settings.quitNeedsOption = quitOptionSwitch.state == .on
         Log.info("Hide Quit unless Option is held set to \(Settings.quitNeedsOption)")
     }
 
@@ -339,9 +463,4 @@ final class SettingsWindowController: NSWindowController {
 
     @objc private func openGuide() { AppInfo.openSetupGuide() }
     @objc private func openLog() { Log.show() }
-}
-
-private extension NSObject {
-    /// Tiny helper so a view can be configured inline.
-    @discardableResult func then(_ configure: (Self) -> Void) -> Self { configure(self); return self }
 }

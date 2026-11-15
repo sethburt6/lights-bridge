@@ -26,6 +26,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return args[i + 1]
         }
 
+        // Dev only: force light or dark appearance, e.g. `--appearance light`, for screenshots.
+        if let a = devValue("--appearance") {
+            NSApp.appearance = NSAppearance(named: a == "light" ? .aqua : .darkAqua)
+        }
+
         Log.info("Lights Bridge starting (version \(AppInfo.version), pid \(ProcessInfo.processInfo.processIdentifier), dev=\(LaunchAgent.devMode))")
         LaunchAgent.ensureInstalledOrExit()
 
@@ -37,9 +42,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if LaunchAgent.devMode && (args.contains("--open-settings") || args.contains("--snapshot-settings")) {
             settingsWindow.show()
         }
-        if let path = devValue("--snapshot-settings") {
+        // Dev only: save PNGs of the Settings window and/or the menu, then quit.
+        let settingsPath = devValue("--snapshot-settings")
+        let menuPath = devValue("--snapshot-menu")
+        if settingsPath != nil || menuPath != nil {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
-                self?.settingsWindow.snapshot(to: URL(fileURLWithPath: path))
+                if let p = settingsPath { self?.settingsWindow.snapshot(to: URL(fileURLWithPath: p)) }
+                if let p = menuPath { self?.statusController.snapshotMenu(to: URL(fileURLWithPath: p)) }
                 NSApp.terminate(nil)
             }
         }

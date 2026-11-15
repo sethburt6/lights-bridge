@@ -179,35 +179,34 @@ Then delete Lights Bridge from Applications.
 ## (i) Settings reference
 
 Click the Lights dot and choose **Settings...**. Changes save the moment you make them; there is no Save
-button. The defaults are right for almost everyone.
+button. The defaults are right for almost everyone. Hover over a setting for a short explanation.
 
-**Status** (read-only)
+**Status** (the header at the top, read-only)
 
-- **Board cable:** green "Connected" with the cable's name, or red "Not found".
-- **From ProPresenter:** the last note ProPresenter sent, and when. If a lighting slide did nothing and
-  this did not change, the problem is on the ProPresenter side.
-- **Last cue sent:** the last cue sent to the board. If this changed but the board did nothing, the
-  problem is the cable or the board.
+- **Green dot, "Connected to ..."** shows the cable's name; a red dot and "Board cable not found" means
+  the cable is not detected.
+- The line under it shows the last cue sent (or the last note received from ProPresenter, or "Waiting for
+  ProPresenter"). Hover over it for both details. If a lighting slide did nothing and nothing was received,
+  the problem is on the ProPresenter side. If a cue was sent but the board did nothing, the problem is the
+  cable or the board.
 
 **Board**
 
-- **Send to** (default **Automatic (only cable)**): uses whichever single MIDI cable is plugged in, so a
-  replacement cable works with no change. Pick a specific device only if two MIDI devices are plugged in.
+- **Send to** (default **Automatic**): uses whichever single MIDI cable is plugged in, so a replacement
+  cable works with no change. Pick a specific device only if two MIDI devices are plugged in.
 - **MIDI channel** (default **1**): must match the board's MIDI channel (see section c).
 
 **Reliability** (all on by default; leave them on)
 
-- **Start when the Mac logs in:** Lights Bridge is ready before ProPresenter opens.
-- **Restart automatically if it quits or crashes:** it comes back within about 10 seconds.
-- **Hide Quit unless the Option key is held:** prevents quitting it by accident. To quit, hold Option
-  and click the dot.
+- **Start at login:** Lights Bridge is ready before ProPresenter opens.
+- **Restart if it quits:** it comes back within about 10 seconds.
+- **Hide Quit (hold Option to show):** prevents quitting it by accident. To quit, hold Option and click
+  the dot.
 - **Cable reconnect: Always on.** It finds the cable again after it is unplugged; there is no switch.
 
 **Advanced**
 
 - **Cue number offset** (default **0**): only if the board runs a different cue than the slide asks for
   (see section e).
-
-**Test**
-
-- **Cue number + Send Test Cue:** sends that cue straight to the board, without ProPresenter.
+- **Test cue:** type a cue number and click **Send** to send it straight to the board, without
+  ProPresenter.
