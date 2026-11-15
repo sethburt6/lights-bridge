@@ -4,7 +4,9 @@ Look at the dot and the word "Lights" next to the clock.
 
 - **Red dot:** the USB MIDI cable isn't found. Unplug it and plug it back in, or
   try another USB port. On a Roland UM-ONE, check its little switch is on **TAB** (not COMP).
-- **No dot at all:** open **Lights Bridge** from the Applications folder.
+- **No dot at all:** open **Lights Bridge** from the Applications folder (the dot can take about 10
+  seconds to appear). Then click the dot, choose **Settings...**, and check that all three
+  **Reliability** boxes are ticked so it starts and restarts by itself.
 - **Yellow dot, and it stays yellow after you change slides:** the cable is found, but ProPresenter isn't
   sending anything. Check that the slide has a "Lights ..." macro on it, and that "Lights Bridge" is
   turned on in ProPresenter's Settings > Devices > MIDI. Try clicking the macro in the Macros tab. To check, click the dot, choose **Settings...**, and look at

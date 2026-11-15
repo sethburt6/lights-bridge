@@ -12,7 +12,7 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
-- The setup guide walks through creating lighting macros in ProPresenter step by step, with screenshots.
+- The setup guide walks through connecting ProPresenter, creating lighting macros and adding them to slides step by step, with links to Renewed Vision's official guides, plus a reference for every setting.
 
 ## [1.0.0] - 2026-11-15
 
