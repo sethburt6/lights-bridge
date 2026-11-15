@@ -5,6 +5,9 @@ Do these once. It takes about 20 minutes.
 ## (a) Hardware
 
 - Use any "class-compliant" USB-MIDI cable (it works without installing drivers).
+- **Roland UM-ONE:** set its small slide switch to **TAB**, not COMP. On COMP it needs Roland's driver
+  and the Mac won't list it, so the Lights dot stays red. (If you change the switch, unplug and
+  replug the cable.)
 - Plug the USB end into the Mac.
 - Plug the cable's **OUT** plug into the board's **MIDI IN** socket. (Out of the Mac goes into the board.)
 
@@ -34,15 +37,32 @@ Check them on your board.
 2. Record each look as a cue (Cue 1 Walk-in, Cue 2 Worship, and so on).
 3. Bring the submasters down. The highest level wins, so a raised submaster can hide a cue.
 
-## (d) ProPresenter 7
+## (d) ProPresenter
 
-1. **Settings > Devices > MIDI**: add / enable **Lights Bridge** as an output.
-2. On a slide, right-click > **Add Action > Communication > MIDI > Note On**.
-   - Note = the cue number you want.
-   - Velocity = anything above 0.
-   - Channel doesn't matter.
-3. Tip: save these as ProPresenter macros with names like "Lights: Worship" so you can reuse them.
-4. Note 0 means "GO next cue".
+Every lighting look is a **ProPresenter macro**, so all of them are listed in the **Macros** tab and
+slides never hold raw MIDI. To change what a look does, edit its macro once and every slide that uses
+it follows. (Menu names below are from ProPresenter 7; newer versions may word them slightly
+differently.)
+
+1. **Add the MIDI device (once):** in ProPresenter's Settings, open **Devices** (or Connections /
+   Communications), click **+**, add a **MIDI** device, and choose **Lights Bridge** as its output. Name
+   it "Lights". Do not choose the USB cable itself; ProPresenter talks to Lights Bridge, and Lights
+   Bridge talks to the cable.
+2. **Make one macro per look:** open the **Macros** tab and create a macro for each board cue. Name it
+   `Lights NN - Look`, so the cue number is in the name and the list sorts in cue order:
+
+   | Macro name           | Its one action                          |
+   |----------------------|-----------------------------------------|
+   | `Lights 01 - Walk-in` | Communication > Lights > Note On, note 1 |
+   | `Lights 02 - Worship` | Communication > Lights > Note On, note 2 |
+   | `Lights 03 - Sermon`  | Communication > Lights > Note On, note 3 |
+
+   - Note = the board cue number. Velocity = anything above 0 (100 is fine). Channel doesn't matter.
+   - Note 0 means "GO next cue" on the board, if you ever want a `Lights - Next` macro.
+   - Give the macros one color (for example amber) so they stand out from other macros.
+3. **Use them on slides:** add the macro to the slide where the look should change (right-click the
+   slide > Macro, or drag the macro onto the slide). You can also click a macro in the Macros tab to
+   run that look by hand.
 
 ## (e) First test
 
