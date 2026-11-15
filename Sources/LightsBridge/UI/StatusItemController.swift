@@ -79,7 +79,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
         menu.addItem(action("About Lights Bridge", #selector(showAbout)))
 
-        if NSEvent.modifierFlags.contains(.option) {
+        if !Settings.quitNeedsOption || NSEvent.modifierFlags.contains(.option) {
             menu.addItem(.separator())
             menu.addItem(action("Quit (stops until next login)", #selector(quit)))
         }

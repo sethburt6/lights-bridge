@@ -32,6 +32,25 @@ enum Settings {
         set { if let v = newValue { d.set(v, forKey: "outputName") } else { d.removeObject(forKey: "outputName") } }
     }
 
+    /// Reliability switches. All default to on (true) when the key has never been set.
+    private static func flag(_ key: String) -> Bool { d.object(forKey: key) == nil ? true : d.bool(forKey: key) }
+
+    /// Start when the Mac logs in (launchd RunAtLoad).
+    static var startAtLogin: Bool {
+        get { flag("startAtLogin") }
+        set { d.set(newValue, forKey: "startAtLogin") }
+    }
+    /// Come back after an unexpected quit or crash.
+    static var restartIfQuits: Bool {
+        get { flag("restartIfQuits") }
+        set { d.set(newValue, forKey: "restartIfQuits") }
+    }
+    /// Show the Quit menu item only while Option is held.
+    static var quitNeedsOption: Bool {
+        get { flag("quitNeedsOption") }
+        set { d.set(newValue, forKey: "quitNeedsOption") }
+    }
+
     /// Saved unique IDs of our own virtual endpoints, so apps (ProPresenter)
     /// recognise them after a restart.
     static var inputUniqueID: Int32? {

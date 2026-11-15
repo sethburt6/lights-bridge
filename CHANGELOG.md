@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-11-15
+
+### Added
+
+- Reliability section in Settings: start at login, restart automatically if it quits or crashes, and hide Quit unless Option is held. All are on by default.
+
+### Changed
+
+- The setup guide walks through creating lighting macros in ProPresenter step by step, with screenshots.
+
 ## [1.0.0] - 2026-11-15
 
 ### Added

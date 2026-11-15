@@ -27,6 +27,10 @@ final class SettingsWindowController: NSWindowController {
     // Board
     private let outputPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private let channelPopup = NSPopUpButton(frame: .zero, pullsDown: false)
+    // Reliability
+    private let loginCheck = NSButton(checkboxWithTitle: "Start when the Mac logs in", target: nil, action: nil)
+    private let restartCheck = NSButton(checkboxWithTitle: "Restart automatically if it quits or crashes", target: nil, action: nil)
+    private let quitOptionCheck = NSButton(checkboxWithTitle: "Hide Quit unless the Option key is held", target: nil, action: nil)
     // Advanced
     private let offsetStepper = NSStepper()
     private let offsetLabel = SettingsWindowController.valueLabel()
@@ -119,6 +123,27 @@ final class SettingsWindowController: NSWindowController {
         note.textColor = .secondaryLabelColor
         note.preferredMaxLayoutWidth = 260
 
+        loginCheck.target = self; loginCheck.action = #selector(loginChanged)
+        restartCheck.target = self; restartCheck.action = #selector(restartChanged)
+        quitOptionCheck.target = self; quitOptionCheck.action = #selector(quitOptionChanged)
+        /// A checkbox with a small secondary-color explanation line under it.
+        func checkBlock(_ box: NSButton, _ text: String) -> NSView {
+            let n = NSTextField(wrappingLabelWithString: text)
+            n.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+            n.textColor = .secondaryLabelColor
+            n.preferredMaxLayoutWidth = 260
+            box.lineBreakMode = .byWordWrapping
+            box.widthAnchor.constraint(equalToConstant: 270).isActive = true
+            let stack = NSStackView(views: [box, n])
+            stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 2
+            return stack
+        }
+        let loginBlock = checkBlock(loginCheck, "Recommended. Lights Bridge is ready before ProPresenter opens.")
+        let restartBlock = checkBlock(restartCheck, "Recommended. It comes back within about 10 seconds.")
+        let quitBlock = checkBlock(quitOptionCheck, "Recommended. Prevents quitting it by accident.")
+        let reconnect = NSTextField(wrappingLabelWithString: "Always on (finds the cable again after it is unplugged)")
+        reconnect.preferredMaxLayoutWidth = 260
+
         let formatter = NumberFormatter()
         formatter.numberStyle = .none
         formatter.minimum = 0; formatter.maximum = 127; formatter.allowsFloats = false
@@ -168,6 +193,11 @@ final class SettingsWindowController: NSWindowController {
         section("Board")
         formRow("Send to:", outputPopup)
         formRow("MIDI channel:", channelPopup)
+        section("Reliability")
+        grid.addRow(with: [NSGridCell.emptyContentView, loginBlock])
+        grid.addRow(with: [NSGridCell.emptyContentView, restartBlock])
+        grid.addRow(with: [NSGridCell.emptyContentView, quitBlock])
+        formRow("Cable reconnect:", reconnect)
         section("Advanced")
         formRow("Cue number offset:", offsetRow)
         grid.addRow(with: [NSGridCell.emptyContentView, note])
@@ -250,6 +280,10 @@ final class SettingsWindowController: NSWindowController {
 
         channelPopup.selectItem(withTag: Settings.boardChannel)
 
+        loginCheck.state = Settings.startAtLogin ? .on : .off
+        restartCheck.state = Settings.restartIfQuits ? .on : .off
+        quitOptionCheck.state = Settings.quitNeedsOption ? .on : .off
+
         let off = min(5, max(-5, Settings.cueOffset))
         offsetStepper.integerValue = off
         offsetLabel.stringValue = off > 0 ? "+\(off)" : "\(off)"
@@ -272,6 +306,21 @@ final class SettingsWindowController: NSWindowController {
         Settings.boardChannel = c
         engine.reloadSettings()
         Log.info("Board MIDI channel set to \(c)")
+    }
+
+    @objc private func loginChanged() {
+        Settings.startAtLogin = loginCheck.state == .on
+        LaunchAgent.applyStartAtLogin()
+    }
+
+    @objc private func restartChanged() {
+        Settings.restartIfQuits = restartCheck.state == .on
+        Log.info("Restart if it quits set to \(Settings.restartIfQuits)")
+    }
+
+    @objc private func quitOptionChanged() {
+        Settings.quitNeedsOption = quitOptionCheck.state == .on
+        Log.info("Hide Quit unless Option is held set to \(Settings.quitNeedsOption)")
     }
 
     @objc private func offsetChanged() {

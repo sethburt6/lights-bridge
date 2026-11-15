@@ -6,8 +6,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let engine = MIDIEngine()
     private var settingsWindow: SettingsWindowController!
     private var statusController: StatusItemController!
+    /// Turns SIGTERM (logout, restart, `launchctl` stop, Activity Monitor "Quit") into a normal
+    /// AppKit quit, so applicationWillTerminate runs and the crash marker is cleared. Without this
+    /// a Mac restart would look like a crash, and with "Restart automatically" off the app would
+    /// stop itself at the next login.
+    private var termSource: DispatchSourceSignal?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        signal(SIGTERM, SIG_IGN)
+        let source = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
+        source.setEventHandler { NSApp.terminate(nil) }
+        source.resume()
+        termSource = source
+
         let args = CommandLine.arguments
         /// Value following a dev flag, e.g. `--snapshot-settings <path>`.
         func devValue(_ flag: String) -> String? {
@@ -32,5 +43,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 NSApp.terminate(nil)
             }
         }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        LaunchAgent.clearRunningMarker()
     }
 }

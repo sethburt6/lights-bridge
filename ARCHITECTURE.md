@@ -32,7 +32,7 @@ Only Note On with velocity above 0 produces output. Everything else is dropped.
 | `Sources/LightsBridge/App/main.swift` | Starts NSApplication as a menu-bar-only app (no Dock icon). |
 | `Sources/LightsBridge/App/AppDelegate.swift` | Startup wiring, plus the developer flags. |
 | `Sources/LightsBridge/MIDI/MIDIEngine.swift` | All CoreMIDI code: virtual endpoints, receiving, sending, output selection, last-cue tracking. |
-| `Sources/LightsBridge/System/LaunchAgent.swift` | Installs and loads the per-user launchd agent; insists the app lives in /Applications. |
+| `Sources/LightsBridge/System/LaunchAgent.swift` | Installs and loads the per-user launchd agent (plist from `BridgeCore/LaunchAgentPlist.swift`), and keeps the crash marker; insists the app lives in /Applications. |
 | `Sources/LightsBridge/System/Log.swift` | Logs to the unified log and `~/Library/Logs/LightsBridge.log`. |
 | `Sources/LightsBridge/System/Settings.swift` | UserDefaults-backed settings, and `AppInfo` (version, setup guide link). |
 | `Sources/LightsBridge/UI/StatusItemController.swift` | The menu-bar item (colored dot plus "Lights": green working, yellow waiting, red cable not found) and its menu, including the Option-only Quit. |
@@ -54,7 +54,12 @@ Only Note On with velocity above 0 produces output. Everything else is dropped.
 - **LaunchAgent with KeepAlive, and the Option-only Quit.** A launchd agent starts the app at login and
   restarts it if it quits or crashes, because nobody is watching it on Sunday morning. The Quit item is
   hidden unless Option is held, so it is hard to hit by accident. Opening a new copy after an update
-  restarts the running one.
+  restarts the running one. The Reliability section in Settings makes three behaviors switchable, all
+  on by default: start at login (the plist's RunAtLoad, rewritten without reloading the job), restart
+  if it quits, and hide Quit unless Option is held. KeepAlive stays on in the plist; restart-if-quits
+  is decided by the app on launch with a crash marker (`~/Library/Application Support/Lights Bridge/running`),
+  created at startup and deleted on every clean exit. If launchd starts a copy and the marker is
+  still there, the last run died unexpectedly, and with the switch off the app stops itself.
 - **BridgeCore is pure and unit tested.** Everything that decides what goes to the board has no CoreMIDI
   or AppKit dependency, so it is covered by fast tests.
 - **Ad-hoc signing, no developer account.** `codesign --sign -` is free and has no yearly renewal. The
